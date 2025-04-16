@@ -19,7 +19,7 @@ restart: stop up
 
 restart_debug: stop debug
 
-clean:
+clean: stop
 	@docker image rm srcs-nginx srcs-wordpress srcs-mariadb || true
 
 help:
