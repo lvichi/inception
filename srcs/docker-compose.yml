@@ -2,9 +2,16 @@ services:
   nginx:
     build: ./requirements/nginx
     container_name: nginx
+    volumes:
+      - wordpress-data:/var/www/html
     ports:
       - "443:443"
       - "80:80"
+    configs:
+      - source: nginx-nginx.conf
+        target: /etc/nginx/nginx.conf
+    networks:
+      - inception
     depends_on:
       - wordpress
     restart: unless-stopped
@@ -14,6 +21,22 @@ services:
     container_name: wordpress
     volumes:
       - wordpress-data:/var/www/html
+    configs:
+      - source: wordpress-php-fpm-conf.conf
+        target: /etc/php/7.4/fpm/php-fpm.conf
+      - source: wordpress-wp-config.php
+        target: /var/www/html/wp-config.php
+      - source: wordpress-www.conf
+        target: /etc/php/7.4/fpm/pool.d/www.conf
+    secrets:
+      - db_password
+    environment:
+      - WORDPRESS_DB_HOST=${DB_HOST}
+      - WORDPRESS_DB_USER=${DB_USER}
+      - WORDPRESS_DB_NAME=${DB_NAME}
+      - WORDPRESS_DB_PASSWORD_FILE=/run/secrets/db_password
+    networks:
+      - inception
     depends_on:
       - mariadb
     restart: unless-stopped
@@ -23,6 +46,21 @@ services:
     container_name: mariadb
     volumes:
       - mariadb-data:/var/lib/mysql
+    configs:
+      - source: mariadb-my.cnf
+        target: /etc/mysql/my.cnf
+      - source: mariadb-init.sql
+        target: /etc/mysql/init.sql
+    secrets:
+      - db_password
+      - db_root_password
+    environment:
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db_root_password
+    networks:
+      - inception
     restart: unless-stopped
 
 volumes:
@@ -30,15 +68,36 @@ volumes:
     driver: local
     driver_opts:
       type: none
-      device: ${PWD}/data/wordpress
+      device: ~/.inception/data/wordpress
       o: bind
-
   mariadb-data:
     driver: local
     driver_opts:
       type: none
-      device: ${PWD}/data/mariadb
+      device: ~/.inception/data/mariadb
       o: bind
+
+configs:
+  nginx-nginx.conf:
+    file: ./requirements/nginx/conf/nginx.conf
+  wordpress-php-fpm-conf.conf:
+    file: ./requirements/wordpress/conf/php-fpm.conf
+  wordpress-wp-config.php:
+    file: ./requirements/wordpress/conf/wp-config.php
+  wordpress-www.conf:
+    file: ./requirements/wordpress/conf/www.conf
+  mariadb-my.cnf:
+    file: ./requirements/mariadb/conf/my.cnf
+  mariadb-init.sql:
+    file: ./requirements/mariadb/conf/init.sql
+
+secrets:
+  db_password:
+    file: ../secrets/db_password.txt
+  db_root_password:
+    file: ../secrets/db_root_password.txt
+  credentials:
+    file: ../secrets/credentials.txt
 
 networks:
   inception:
