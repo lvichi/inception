@@ -1,51 +1,134 @@
-include srcs/.env
+ifneq ("$(wildcard srcs/.env)", "")
+	include srcs/.env
+	export
+endif
+
+ENV_LIST := \
+	DOMAIN_NAME \
+	COMPOSE_PATH \
+	COMPOSE_PROJECT_NAME \
+	DATA_PATH \
+	DB_HOST \
+	DB_USER \
+	DB_NAME
+
+# Validate that all required env variables are set and non-empty
+$(foreach var,$(ENV_LIST), $(if $(value $(var)),,$(error Missing or empty environment variable: $(var))))
+
+DATA_PATH := $(shell eval echo $(DATA_PATH))
+
+REQUIRED_TOOLS := \
+	docker \
+	yq
+
+IMAGES := $(shell yq '.services[].image' $(COMPOSE_PATH) 2>/dev/null)
 
 all: up
 
-build:
-	@docker compose -f $(COMPOSE_PATH) build --no-cache
-
-up: data
+up: precheck data set-host
 	@docker compose -f $(COMPOSE_PATH) up -d
 	@docker ps -a
 	@docker volume ls
 	@docker network ls
 
-debug: data
-	@docker compose -f $(COMPOSE_PATH) up
+up_build: build up
 
-stop:
+build: precheck
+	@docker compose -f $(COMPOSE_PATH) build --no-cache
+
+debug: up logs
+
+logs: precheck
+	@docker compose -f $(COMPOSE_PATH) logs -f --tail=100
+
+stop: precheck
 	@docker compose -f $(COMPOSE_PATH) down --remove-orphans --volumes
 
 restart: stop up
 
 restart_debug: stop debug
 
-fclean_restart: fclean up
-
-clean: stop
-	@docker image rm $(COMPOSE_PROJECT_NAME)-nginx $(COMPOSE_PROJECT_NAME)-wordpress $(COMPOSE_PROJECT_NAME)-mariadb || true
-
-data:
-	@mkdir -p $(DATA_PATH)/mariadb $(DATA_PATH)/wordpress
+restart_fclean: fclean up
 
 data_clean:
-	@sudo -n true 2>/dev/null || { \
-		echo "❌ You must have sudo privileges to run this command."; \
-		exit 1; \
-	}
-	@sudo rm -rf $(DATA_PATH)/mariadb $(DATA_PATH)/wordpress
+	@if [ -d $(DATA_PATH) ]; then \
+		$(call CHECK_SUDO); \
+		echo "📁❌ Removing data directory: $(DATA_PATH)"; \
+		sudo rm -rf $(DATA_PATH); \
+	fi
 
-fclean: clean data_clean
+clean: stop
+	@for image in $(IMAGES); do \
+		if docker image inspect $$image >/dev/null 2>&1; then \
+			docker image rm $$image; \
+		fi; \
+	done
+
+fclean: unset-host clean data_clean
+	@docker builder prune -f
+
+## HELPERS
+# Create required local data directories
+data:
+	@for path in $(shell yq '.volumes[].driver_opts.device' $(COMPOSE_PATH)); do \
+		expanded_path=$$(eval echo $$path); \
+		if [ ! -d "$$expanded_path" ]; then \
+			echo "📁 Creating $$expanded_path"; \
+			mkdir -p "$$expanded_path"; \
+		fi; \
+	done
+
+# Check if the user has sudo privileges
+define CHECK_SUDO
+  sudo -n true 2>/dev/null || { \
+    echo "❌ You must have sudo privileges to run this command."; \
+    exit 1; \
+  }
+endef
+
+# Add the domain name to /etc/hosts if it doesn't exist
+set-host:
+	@grep -q "$(DOMAIN_NAME)" /etc/hosts || { \
+		$(call CHECK_SUDO); \
+		sudo sh -c 'echo "127.0.0.1 $(DOMAIN_NAME)" >> /etc/hosts'; \
+		echo "✅ Added $(DOMAIN_NAME) to /etc/hosts"; \
+	}
+
+unset-host:
+	@if grep -q "$(DOMAIN_NAME)" /etc/hosts; then \
+		$(call CHECK_SUDO); \
+		sudo sed -i "/$(DOMAIN_NAME)/d" /etc/hosts; \
+		echo "❌ Removed $(DOMAIN_NAME) from /etc/hosts"; \
+	fi
+
+# Check if required tools are installed
+precheck:
+	@missing=0; \
+	for tool in $(REQUIRED_TOOLS); do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			echo "Missing required tool: $$tool"; \
+			missing=1; \
+		fi; \
+	done; \
+	if [ $$missing -eq 1 ]; then \
+		exit 1; \
+	fi
 
 help:
-	@echo "Makefile commands:"
-	@echo "  all        : Build and start the containers"
-	@echo "  build      : Build the containers without cache"
-	@echo "  up         : Start the containers"
-	@echo "  stop       : Stop and remove the containers"
-	@echo "  restart    : Restart the containers"
-	@echo "  clean      : Remove images"
-	@echo "  help       : Show this help message"
+	@echo "Makefile Commands:"
+	@echo "  up              : Start containers in detached mode"
+	@echo "  up_build        : Rebuild images and start containers"
+	@echo "  build           : Rebuild all images without cache"
+	@echo "  debug           : Start containers (via 'up') and follow logs"
+	@echo "  logs            : Follow logs of running containers"
+	@echo "  stop            : Stop and remove all containers, volumes, and orphans"
+	@echo "  restart         : Stop and start containers again"
+	@echo "  restart_debug   : Stop and start, then follow logs"
+	@echo "  restart_fclean  : Full cleanup and start fresh"
+	@echo "  clean           : Remove built images only"
+	@echo "  fclean          : Remove images and all persistent data (requires sudo)"
+	@echo "  data_clean      : Remove persistent data (requires sudo)"
+	@echo "  help            : Show this help message"
 
-.PHONY: run stop restart clean help
+.PHONY: all up build debug logs stop restart restart_debug restart_fclean \
+	data_clean clean fclean data set-host precheck help
