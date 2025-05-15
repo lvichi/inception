@@ -8,6 +8,9 @@ define( 'WP_DEBUG', true );
 define( 'WP_DEBUG_LOG', true );
 define( 'WP_DEBUG_DISPLAY', true );
 
+define( 'WP_HOME', 'https://' . getenv('DOMAIN_NAME') );
+define( 'WP_SITEURL', 'https://' . getenv('DOMAIN_NAME') );
+
 $table_prefix = 'wp_';
 
 if ( ! defined( 'ABSPATH' ) ) {

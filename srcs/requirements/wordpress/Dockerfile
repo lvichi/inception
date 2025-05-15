@@ -3,7 +3,7 @@ FROM debian:oldstable
 
 # Install PHP and required dependencies
 RUN apt-get update && \
-    apt-get install -y php-fpm php-mysql curl unzip && \
+    apt-get install -y php-fpm php-mysql curl unzip default-mysql-client && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/php
@@ -20,5 +20,15 @@ RUN chown -R www-data:www-data /var/www/html && \
     addgroup --gid 984 configgroup && \
     usermod -aG configgroup www-data
 
-# Command to run PHP-FPM in the foreground
-CMD ["php-fpm7.4", "-F"]
+# Install wp-cli to manage WordPress from the command line
+RUN curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
+    chmod +x wp-cli.phar && \
+    mv wp-cli.phar /usr/local/bin/wp
+
+# Copy the initialization script
+COPY tools/start.sh /usr/local/bin/start.sh
+
+# Set the script to be executable
+RUN chmod +x /usr/local/bin/start.sh
+
+ENTRYPOINT ["start.sh"]

@@ -6,11 +6,15 @@ endif
 ENV_LIST := \
 	DOMAIN_NAME \
 	COMPOSE_PATH \
-	COMPOSE_PROJECT_NAME \
 	DATA_PATH \
+	COMPOSE_PROJECT_NAME \
 	DB_HOST \
 	DB_USER \
-	DB_NAME
+	DB_NAME \
+	WP_ADMIN \
+	WP_ADMIN_EMAIL \
+	WP_USER \
+	WP_USER_EMAIL
 
 # Validate that all required env variables are set and non-empty
 $(foreach var,$(ENV_LIST), $(if $(value $(var)),,$(error Missing or empty environment variable: $(var))))

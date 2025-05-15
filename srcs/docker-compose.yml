@@ -33,11 +33,18 @@ services:
         target: /etc/php/7.4/fpm/pool.d/www.conf
     secrets:
       - db_password
+      - wp_admin_password
+      - wp_user_password
     environment:
       - WORDPRESS_DB_HOST=${DB_HOST}
       - WORDPRESS_DB_USER=${DB_USER}
       - WORDPRESS_DB_NAME=${DB_NAME}
       - WORDPRESS_DB_PASSWORD_FILE=/run/secrets/db_password
+      - DOMAIN_NAME=${DOMAIN_NAME}
+      - WP_ADMIN=${WP_ADMIN}
+      - WP_ADMIN_EMAIL=${WP_ADMIN_EMAIL}
+      - WP_USER=${WP_USER}
+      - WP_USER_EMAIL=${WP_USER_EMAIL}
     networks:
       - inception
     depends_on:
@@ -101,8 +108,10 @@ secrets:
     file: ../secrets/db_password.txt
   db_root_password:
     file: ../secrets/db_root_password.txt
-  credentials:
-    file: ../secrets/credentials.txt
+  wp_admin_password:
+    file: ../secrets/wp_admin_password.txt
+  wp_user_password:
+    file: ../secrets/wp_user_password.txt
 
 networks:
   inception:
