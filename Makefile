@@ -8,6 +8,8 @@ ENV_LIST := \
 	COMPOSE_PATH \
 	DATA_PATH \
 	COMPOSE_PROJECT_NAME \
+	SECRET_DIR \
+	SECRET_FILES \
 	DB_HOST \
 	DB_USER \
 	DB_NAME \
@@ -20,10 +22,6 @@ ENV_LIST := \
 $(foreach var,$(ENV_LIST), $(if $(value $(var)),,$(error Missing or empty environment variable: $(var))))
 
 DATA_PATH := $(shell eval echo $(DATA_PATH))
-
-REQUIRED_TOOLS := \
-	docker \
-	yq
 
 IMAGES := $(shell yq '.services[].image' $(COMPOSE_PATH) 2>/dev/null)
 
@@ -105,18 +103,33 @@ unset-host:
 		echo "❌ Removed $(DOMAIN_NAME) from /etc/hosts"; \
 	fi
 
-# Check if required tools are installed
-precheck:
+# Check if all tools are installed
+precheck_tools:
 	@missing=0; \
 	for tool in $(REQUIRED_TOOLS); do \
 		if ! command -v $$tool >/dev/null 2>&1; then \
-			echo "Missing required tool: $$tool"; \
+			echo "❌ Missing required tool: $$tool"; \
 			missing=1; \
 		fi; \
 	done; \
-	if [ $$missing -eq 1 ]; then \
+	[ $$missing -eq 0 ]
+
+# Check that secrets directory exists and each file is non‐empty
+precheck_secrets:
+	@if [ ! -d "$(SECRET_DIR)" ]; then \
+		echo "❌ Missing secrets directory: $(SECRET_DIR)"; \
 		exit 1; \
-	fi
+	fi; \
+	missing=0; \
+	for f in $(SECRET_FILES); do \
+		if [ ! -s "$(SECRET_DIR)/$$f" ]; then \
+			echo "❌ Missing or empty secret file: $(SECRET_DIR)/$$f"; \
+			missing=1; \
+		fi; \
+	done; \
+	[ $$missing -eq 0 ]
+
+precheck: precheck_tools precheck_secrets
 
 help:
 	@echo "Makefile Commands:"
