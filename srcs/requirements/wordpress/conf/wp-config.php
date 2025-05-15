@@ -1,8 +1,8 @@
 <?php
 define( 'DB_NAME', getenv('WORDPRESS_DB_NAME') );
 define( 'DB_USER', getenv('WORDPRESS_DB_USER') );
-define( 'DB_PASSWORD', file_get_contents(getenv('WORDPRESS_DB_PASSWORD_FILE')) );
 define( 'DB_HOST', getenv('WORDPRESS_DB_HOST') );
+define( 'DB_PASSWORD', trim( file_get_contents( getenv('WORDPRESS_DB_PASSWORD_FILE') ) ) );
 
 define( 'WP_DEBUG', true );
 define( 'WP_DEBUG_LOG', true );
